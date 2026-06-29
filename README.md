@@ -15,7 +15,7 @@ Add the following to a project repo's `Makefile`:
 ```make
 # --- secrets (shared SOPS tooling from northconn/vexa-sops) --------------------
 VEXA_SOPS_REPO ?= https://github.com/northconn/vexa-sops
-VEXA_SOPS_REF  ?= v2
+VEXA_SOPS_REF  ?= v2.1
 
 .PHONY: sops-init
 sops-init: ## vendor the shared SOPS tooling into ./.sops-tools (pinned to VEXA_SOPS_REF)
@@ -80,6 +80,20 @@ Recipients are public, so rotation is a re-key of existing files — no plaintex
 4. Update the `SOPS_AGE_KEY` GitHub Actions secret on each repo and confirm CI passes.
 5. Remove the old recipient from `.sops.yaml`, cut another tag, re-run `make sops-init` + `make sops-update` in each repo, commit, and shred the old key from developer machines.
 
+## Shared CI actions
+
+This repo also hosts the composite actions the project repos use in CI, so the sops install and its pin live in exactly one place. They are public, so any repo references them cross-repo with no authentication:
+
+```yaml
+- uses: northconn/vexa-sops/.github/actions/setup-sops@v2.1
+- uses: northconn/vexa-sops/.github/actions/setup-gitleaks@v2.1
+```
+
+- **`setup-sops`** — installs the pinned, checksum-verified sops to `~/.local/bin` (Linux runners). The version is read from `.sops-version` in this repo unless the `version` input overrides it.
+- **`setup-gitleaks`** — installs the pinned, checksum-verified gitleaks the same way.
+
+The decrypt step (`sops --decrypt <file>`) still runs in each consumer workflow against that repo's own checkout; only the tool install is shared. vexa-iac's `setup-iac-tools` delegates its sops install to `setup-sops` so the pin is not duplicated.
+
 ## Version pin
 
-`.sops-version` is the single source of the pinned sops version. The project repos install sops in CI through their own actions (`setup-sops` in vexa-web/vexa-api, `setup-iac-tools` in vexa-iac); a drift-check workflow here asserts those pins match `.sops-version` so CI never has to clone this repo at decrypt time.
+`.sops-version` is the single source of the pinned sops version — consumed by the `setup-sops` action above and reported by each repo's `make doctor`. Reference this repo (Makefile `VEXA_SOPS_REF` and the action `@ref`) by the same tag so a repo pins one version of vexa-sops for both its Makefile tooling and its CI actions.

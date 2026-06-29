@@ -1,0 +1,64 @@
+name: 'Setup gitleaks'
+description: >-
+  Download a pinned gitleaks release from the official gitleaks/gitleaks GitHub
+  releases, verify SHA256 against the published checksums file, install to
+  ~/.local/bin/gitleaks, and put it on PATH. Linux runners only.
+
+inputs:
+  version:
+    description: gitleaks version to install (no leading 'v').
+    required: false
+    default: '8.30.1'
+
+outputs:
+  version:
+    description: Resolved gitleaks version installed.
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - id: install
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [ "${RUNNER_OS:-}" != "Linux" ]; then
+          echo "::error::setup-gitleaks only supports Linux runners (got RUNNER_OS='${RUNNER_OS:-}')"
+          exit 1
+        fi
+
+        VER="${{ inputs.version }}"
+        BASE="https://github.com/gitleaks/gitleaks/releases/download/v${VER}"
+        ASSET="gitleaks_${VER}_linux_x64.tar.gz"
+        SUMS="gitleaks_${VER}_checksums.txt"
+
+        TMP="$(mktemp -d)"
+        trap 'rm -rf "$TMP"' EXIT
+        cd "$TMP"
+
+        curl --fail --silent --show-error --location \
+          --output "${ASSET}" "${BASE}/${ASSET}"
+        curl --fail --silent --show-error --location \
+          --output gitleaks.checksums "${BASE}/${SUMS}"
+
+        expected="$(grep " ${ASSET}\$" gitleaks.checksums | awk '{print $1}')"
+        if [ -z "${expected}" ]; then
+          echo "::error::Could not find ${ASSET} in ${SUMS}"
+          exit 1
+        fi
+
+        actual="$(sha256sum "${ASSET}" | awk '{print $1}')"
+        if [ "${expected}" != "${actual}" ]; then
+          echo "::error::gitleaks checksum mismatch (expected=${expected} actual=${actual})"
+          exit 1
+        fi
+
+        tar -xzf "${ASSET}" gitleaks
+        mkdir -p "${HOME}/.local/bin"
+        install -m 0755 gitleaks "${HOME}/.local/bin/gitleaks"
+        echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+
+        "${HOME}/.local/bin/gitleaks" version
+
+        echo "version=${VER}" >> "${GITHUB_OUTPUT}"

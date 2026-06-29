@@ -1,0 +1,76 @@
+name: 'Setup SOPS'
+description: >-
+  Download a pinned SOPS release from the official getsops/sops GitHub releases,
+  verify SHA256 against the published checksums file, install to
+  ~/.local/bin/sops, and put it on PATH. Linux runners only. The version is
+  resolved from this repository's .sops-version unless the 'version' input is
+  given.
+
+inputs:
+  version:
+    description: >-
+      SOPS version to install (no leading 'v'). When empty, the version is read
+      from .sops-version at the root of this action's repository (the single
+      source of the pin).
+    required: false
+    default: ''
+
+outputs:
+  version:
+    description: Resolved SOPS version installed.
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - id: install
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [ "${RUNNER_OS:-}" != "Linux" ]; then
+          echo "::error::setup-sops only supports Linux runners (got RUNNER_OS='${RUNNER_OS:-}')"
+          exit 1
+        fi
+
+        VER="${{ inputs.version }}"
+        if [ -z "${VER}" ]; then
+          VER="$(tr -d '[:space:]' < "${GITHUB_ACTION_PATH}/../../../.sops-version" 2>/dev/null || true)"
+        fi
+        if [ -z "${VER}" ]; then
+          echo "::error::could not resolve SOPS version (set the 'version' input or provide .sops-version)"
+          exit 1
+        fi
+
+        BASE="https://github.com/getsops/sops/releases/download/v${VER}"
+        ASSET="sops-v${VER}.linux.amd64"
+        SUMS="sops-v${VER}.checksums.txt"
+
+        TMP="$(mktemp -d)"
+        trap 'rm -rf "$TMP"' EXIT
+        cd "$TMP"
+
+        curl --fail --silent --show-error --location \
+          --output sops "${BASE}/${ASSET}"
+        curl --fail --silent --show-error --location \
+          --output sops.checksums "${BASE}/${SUMS}"
+
+        expected="$(grep " ${ASSET}\$" sops.checksums | awk '{print $1}')"
+        if [ -z "${expected}" ]; then
+          echo "::error::Could not find ${ASSET} in ${SUMS}"
+          exit 1
+        fi
+
+        actual="$(sha256sum sops | awk '{print $1}')"
+        if [ "${expected}" != "${actual}" ]; then
+          echo "::error::SOPS checksum mismatch (expected=${expected} actual=${actual})"
+          exit 1
+        fi
+
+        mkdir -p "${HOME}/.local/bin"
+        install -m 0755 sops "${HOME}/.local/bin/sops"
+        echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+
+        "${HOME}/.local/bin/sops" --version
+
+        echo "version=${VER}" >> "${GITHUB_OUTPUT}"
