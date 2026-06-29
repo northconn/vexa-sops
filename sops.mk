@@ -14,6 +14,11 @@ SOPS_CONFIG ?= .sops-tools/.sops.yaml
 # standard set (e.g. vexa-iac's k3s kubeconfigs). Space separated; may glob.
 SOPS_EXTRA_ENC ?=
 
+# Repo-root-relative paths or globs to EXCLUDE from the encrypt sweep, for files
+# that match the name patterns but are intentionally local-only (not shared
+# secrets). Space separated; may glob; entries have no leading "./".
+SOPS_IGNORE ?=
+
 .PHONY: _sops-require sops-encrypt sops-decrypt sops-update
 
 _sops-require:
@@ -24,6 +29,9 @@ sops-encrypt: _sops-require ## encrypt this repo's .env*/*.tfvars -> .env*.enc /
 	@find . \( -path ./.sops-tools -o -path ./.git \) -prune -o -type f \
 		\( -name "*.tfvars" -o -name ".env" -o -name ".env.*" \) \
 		! -name "*.enc.*" ! -name "*.enc" ! -name ".env.example" -print | while IFS= read -r file; do \
+		rel=$${file#./}; skip=; \
+		for ig in $(SOPS_IGNORE); do case "$$rel" in $$ig) skip=1 ;; esac; done; \
+		if [ -n "$$skip" ]; then echo "  -- ignore: $$rel"; continue; fi; \
 		echo "  -> $$file"; \
 		case "$$file" in \
 			*.tfvars) $(SOPS) --config $(SOPS_CONFIG) --encrypt "$$file" > "$${file%.tfvars}.enc.tfvars" ;; \

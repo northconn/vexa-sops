@@ -15,7 +15,7 @@ Add the following to a project repo's `Makefile`:
 ```make
 # --- secrets (shared SOPS tooling from northconn/vexa-sops) --------------------
 VEXA_SOPS_REPO ?= https://github.com/northconn/vexa-sops
-VEXA_SOPS_REF  ?= v1
+VEXA_SOPS_REF  ?= v2
 
 .PHONY: sops-init
 sops-init: ## vendor the shared SOPS tooling into ./.sops-tools (pinned to VEXA_SOPS_REF)
@@ -49,6 +49,16 @@ SOPS_EXTRA_ENC = ansible/playbooks/kubeconfigs/*.yaml
 ```
 
 Only files containing sops ciphertext (`ENC[...]`) are touched; plaintext files matching a glob are skipped.
+
+### Excluding local-only files from the encrypt sweep
+
+`sops-encrypt` matches every `.env*`/`*.tfvars` under the repo. A file that matches those patterns but is intentionally **local-only** (not a shared secret) is excluded with `SOPS_IGNORE` (repo-root-relative paths or globs, space separated, no leading `./`), for example in vexa-iac's Makefile where `environments/terraform.tfvars` holds per-developer environment identifiers:
+
+```make
+SOPS_IGNORE = environments/terraform.tfvars
+```
+
+Ignored files are reported as `-- ignore: <path>` and never encrypted.
 
 ## What the targets do
 
