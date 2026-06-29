@@ -4,7 +4,9 @@ description: >-
   verify SHA256 against the published checksums file, install to
   ~/.local/bin/sops, and put it on PATH. Linux runners only. The version is
   resolved from this repository's .sops-version unless the 'version' input is
-  given.
+  given. Also exports SOPS_AGE_RECIPIENTS (read from this repository's
+  .sops.yaml) so any later in-job `sops --encrypt` has recipients without a
+  per-repo copy of the key list.
 
 inputs:
   version:
@@ -19,6 +21,9 @@ outputs:
   version:
     description: Resolved SOPS version installed.
     value: ${{ steps.install.outputs.version }}
+  recipients:
+    description: Comma-separated age recipients exported as SOPS_AGE_RECIPIENTS (read from .sops.yaml).
+    value: ${{ steps.install.outputs.recipients }}
 
 runs:
   using: composite
@@ -74,3 +79,13 @@ runs:
         "${HOME}/.local/bin/sops" --version
 
         echo "version=${VER}" >> "${GITHUB_OUTPUT}"
+
+        # Export the shared age recipients (from this repo's .sops.yaml) so a
+        # later in-job `sops --encrypt` (e.g. ansible encrypting a fetched k3s
+        # kubeconfig) has recipients without a per-repo copy. Harmless for jobs
+        # that only decrypt. Applies to subsequent steps via GITHUB_ENV.
+        RECIPIENTS="$(grep -oE 'age1[a-z0-9]+' "${GITHUB_ACTION_PATH}/../../../.sops.yaml" 2>/dev/null | paste -sd, - || true)"
+        if [ -n "${RECIPIENTS}" ]; then
+          echo "SOPS_AGE_RECIPIENTS=${RECIPIENTS}" >> "${GITHUB_ENV}"
+          echo "recipients=${RECIPIENTS}" >> "${GITHUB_OUTPUT}"
+        fi
