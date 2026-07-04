@@ -1,4 +1,15 @@
 creation_rules:
+  - path_regex: vexa-api/secrets\.enc\.yaml$
+    age:
+      - age1eyajd4zrhpqheepftf4mr26wrauky6fwjtd8k7vrrfpg3xewrssq2tnwxp
+      - age1luxrhxdgh23epdkgszp377dmfl33tkl5wdlra5xpt3afhser5q6s657vt6
+
+      # The cluster age key is shared with the Argo CD repo-server, which mounts it at
+      # startup to decrypt the encrypted API Helm values. The repo-server mount is
+      # optional, so it still starts, and decryption begins once the real key is loaded
+      # and this role is re-run. The cluster age key is committed in the shared
+      # cluster.enc.yaml, which is a placeholder until the real key is loaded.
+      - age1mrm6lt2gs6ujgxknp6w32n8f5ykvfv096f0ajvkxhctawwm0sg9qzlj8h4
   - age:
       - age1eyajd4zrhpqheepftf4mr26wrauky6fwjtd8k7vrrfpg3xewrssq2tnwxp
       - age1luxrhxdgh23epdkgszp377dmfl33tkl5wdlra5xpt3afhser5q6s657vt6
