@@ -1,5 +1,5 @@
 creation_rules:
-  - path_regex: vexa-api/secrets\.enc\.yaml$
+  - path_regex: gitops/environments/(staging|production)/vexa-api/secrets\.yaml$
     age:
       - age1eyajd4zrhpqheepftf4mr26wrauky6fwjtd8k7vrrfpg3xewrssq2tnwxp
       - age1luxrhxdgh23epdkgszp377dmfl33tkl5wdlra5xpt3afhser5q6s657vt6
