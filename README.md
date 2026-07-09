@@ -2,7 +2,7 @@
 
 Single source of truth for the Vexa projects' [SOPS](https://github.com/getsops/sops) configuration and tooling. This repository holds **no secrets** — only public material:
 
-- **`.sops.yaml`** — the age recipients every encrypted file is encrypted to (one developer key + one shared CI key).
+- **`.sops.yaml`** — the age recipients every encrypted file is encrypted to: one developer key + one shared CI key, plus a cluster key (Argo CD repo-server) added by a scoped rule for `gitops/environments/*/vexa-api/secrets.yaml` only.
 - **`sops.mk`** — shared `make` targets (`sops-encrypt`, `sops-decrypt`, `sops-update`) used by every project repo.
 - **`.sops-version`** — the pinned sops binary version the CI install actions are expected to match.
 
@@ -15,7 +15,7 @@ Add the following to a project repo's `Makefile`:
 ```make
 # --- secrets (shared SOPS tooling from northconn/vexa-sops) --------------------
 VEXA_SOPS_REPO ?= https://github.com/northconn/vexa-sops
-VEXA_SOPS_REF  ?= v2.2
+VEXA_SOPS_REF  ?= v2.3
 
 .PHONY: sops-init
 sops-init: ## vendor the shared SOPS tooling into ./.sops-tools (pinned to VEXA_SOPS_REF)
@@ -85,8 +85,8 @@ Recipients are public, so rotation is a re-key of existing files — no plaintex
 This repo also hosts the composite actions the project repos use in CI, so the sops install and its pin live in exactly one place. They are public, so any repo references them cross-repo with no authentication:
 
 ```yaml
-- uses: northconn/vexa-sops/.github/actions/setup-sops@v2.2
-- uses: northconn/vexa-sops/.github/actions/setup-gitleaks@v2.2
+- uses: northconn/vexa-sops/.github/actions/setup-sops@v2.3
+- uses: northconn/vexa-sops/.github/actions/setup-gitleaks@v2.3
 ```
 
 - **`setup-sops`** — installs the pinned, checksum-verified sops to `~/.local/bin` (Linux runners). The version is read from `.sops-version` in this repo unless the `version` input overrides it. It also exports `SOPS_AGE_RECIPIENTS` (read from this repo's `.sops.yaml`) into the job environment, so a later in-job `sops --encrypt` works without a per-repo copy of the recipient list.

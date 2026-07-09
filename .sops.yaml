@@ -1,5 +1,39 @@
 creation_rules:
-  - path_regex: gitops/environments/(staging|production)/vexa-api/secrets\.yaml$
+  # --- Production (operator-only; the CI recipient is deliberately absent from
+  # --- every rule below, so GitHub Actions cannot decrypt production secrets) ---
+  #
+  # Patterns match BOTH the plaintext working-file name (cluster.main.yaml,
+  # used by a fresh `sops --encrypt`) AND the committed encrypted name
+  # (cluster.main.enc.yaml, used when `sops updatekeys`/`make sops-update`
+  # re-evaluates recipients against the already-encrypted file's own path).
+  # Without the `(\.enc)?` group, a rotation sweep would re-match only the
+  # catch-all rule below and silently re-add the CI recipient.
+  - path_regex: ansible/secrets/(cluster|database)\.main(\.enc)?\.yaml$
+    age:
+      - age1eyajd4zrhpqheepftf4mr26wrauky6fwjtd8k7vrrfpg3xewrssq2tnwxp
+
+      # No CI recipient: production bootstrap is local-operator driven only
+      # (northconn/vexa-iac#12). configure-cluster.yml/configure-database.yml
+      # are staging-only (hardcoded ENVIRONMENT_SHORT=stg, Terraform-reconcile
+      # inventory) and cannot target production's static VPS inventory, but
+      # even a misdirected dispatch would fail closed here: the CI age key
+      # is not a recipient, so `sops --decrypt` in that workflow fails rather
+      # than succeeding against production material.
+  - path_regex: gitops/environments/production/vexa-api/secrets(\.enc)?\.yaml$
+    age:
+      - age1eyajd4zrhpqheepftf4mr26wrauky6fwjtd8k7vrrfpg3xewrssq2tnwxp
+
+      # Production's own dedicated Argo CD repo-server age key (NOT the shared
+      # staging cluster key below). Scoped to this rule only, so production API
+      # secrets are never encrypted for staging's key or the CI key. The
+      # private half is committed SOPS-encrypted in
+      # ansible/secrets/cluster.main.enc.yaml (argocd_sops_age_key).
+      - age1uz9e0vp7uextvcsxh5nr2earmd7fs5j4ckv8rzdhxpg638z5wyksvea9q0
+
+  # --- Staging (same effective recipients as before the split; regex widened
+  # --- to also match secrets.enc.yaml for the same updatekeys-safety reason
+  # --- as the production rule above) ------------------------------------------
+  - path_regex: gitops/environments/staging/vexa-api/secrets(\.enc)?\.yaml$
     age:
       - age1eyajd4zrhpqheepftf4mr26wrauky6fwjtd8k7vrrfpg3xewrssq2tnwxp
       - age1luxrhxdgh23epdkgszp377dmfl33tkl5wdlra5xpt3afhser5q6s657vt6
@@ -10,6 +44,11 @@ creation_rules:
       # and this role is re-run. The cluster age key is committed in the shared
       # cluster.enc.yaml, which is a placeholder until the real key is loaded.
       - age1mrm6lt2gs6ujgxknp6w32n8f5ykvfv096f0ajvkxhctawwm0sg9qzlj8h4
+
+  # --- Catch-all (dev + CI): everything else, including staging's ansible
+  # --- secrets and every other repo file. ---------------------------------------
   - age:
+      # User: vflopes
       - age1eyajd4zrhpqheepftf4mr26wrauky6fwjtd8k7vrrfpg3xewrssq2tnwxp
+      # CI (GitHub Actions)
       - age1luxrhxdgh23epdkgszp377dmfl33tkl5wdlra5xpt3afhser5q6s657vt6
